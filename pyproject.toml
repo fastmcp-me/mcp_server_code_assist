@@ -9,6 +9,9 @@ dependencies = [
     "pydantic>=2.0.0"
 ]
 
+[project.scripts]
+mcp-server-code-assist = "mcp_server_code_assist.__main__:main"
+
 [project.optional-dependencies]
 test = [
     "pytest>=8.0.0",
