@@ -90,12 +90,51 @@ class FileTools:
         return ''.join(diff)
 
     @classmethod
-    async def list_directory(cls, path: str) -> list[str]:
+    async def list_directory(cls, path: str, recursive: bool = False, include_hidden: bool = False) -> list[dict]:
+        """List contents of a directory.
+        
+        Args:
+            path: Directory path to list
+            recursive: Whether to list subdirectories recursively
+            include_hidden: Whether to include hidden files/directories
+            
+        Returns:
+            List of dicts with file/directory info:
+            {
+                "name": str,
+                "path": str,
+                "type": "file"|"directory",
+                "size": int,  # for files only
+                "children": list  # for directories when recursive=True
+            }
+        """
         path = await cls.validate_path(path)
-        entries = []
-        for item in Path(path).iterdir():
-            entries.append(str(item))
-        return entries
+        if not os.path.isdir(path):
+            raise ValueError(f"Path {path} is not a directory")
+            
+        result = []
+        for entry in os.scandir(path):
+            if not include_hidden and entry.name.startswith('.'):
+                continue
+                
+            info = {
+                "name": entry.name,
+                "path": str(Path(entry.path).relative_to(path)),
+                "type": "directory" if entry.is_dir() else "file",
+            }
+            
+            if entry.is_file():
+                info["size"] = entry.stat().st_size
+            elif recursive and entry.is_dir():
+                info["children"] = await cls.list_directory(
+                    entry.path,
+                    recursive=True,
+                    include_hidden=include_hidden
+                )
+                
+            result.append(info)
+            
+        return result
 
     @classmethod
     async def create_directory(cls, path: str) -> None:

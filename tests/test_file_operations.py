@@ -51,14 +51,37 @@ async def test_read_multiple_files():
 
 @pytest.mark.asyncio
 async def test_list_directory():
-    test_file = TEST_DIR / "test.txt"
-    test_dir = TEST_DIR / "test_dir"
-    await FileTools.write_file(str(test_file), "content")
-    test_dir.mkdir()
-    
-    entries = await FileTools.list_directory(str(TEST_DIR))
-    assert any(entry.endswith("test.txt") for entry in entries)
-    assert any(entry.endswith("test_dir") for entry in entries)
+    # Create test structure
+    (TEST_DIR / "dir1").mkdir()
+    (TEST_DIR / "dir1" / "file1.txt").write_text("content1")
+    (TEST_DIR / "dir1" / "file2.txt").write_text("content2")
+    (TEST_DIR / "dir1" / "subdir").mkdir()
+    (TEST_DIR / "dir1" / "subdir" / "file3.txt").write_text("content3")
+    (TEST_DIR / ".hidden_dir").mkdir()
+    (TEST_DIR / ".hidden_file").write_text("hidden")
+
+    # Test basic listing
+    result = await FileTools.list_directory(str(TEST_DIR / "dir1"), recursive=False, include_hidden=False)
+    assert len(result) == 3
+    assert any(item["name"] == "file1.txt" and item["type"] == "file" for item in result)
+    assert any(item["name"] == "file2.txt" and item["type"] == "file" for item in result)
+    assert any(item["name"] == "subdir" and item["type"] == "directory" for item in result)
+
+    # Test recursive listing
+    result = await FileTools.list_directory(str(TEST_DIR / "dir1"), recursive=True, include_hidden=False)
+    assert len(result) == 3
+    subdir = next(item for item in result if item["name"] == "subdir")
+    assert "children" in subdir
+    assert len(subdir["children"]) == 1
+    assert subdir["children"][0]["name"] == "file3.txt"
+
+    # Test hidden files
+    result = await FileTools.list_directory(str(TEST_DIR), recursive=False, include_hidden=True)
+    assert any(item["name"].startswith(".hidden") for item in result)
+
+    # Test error on non-directory
+    with pytest.raises(ValueError):
+        await FileTools.list_directory(str(TEST_DIR / "dir1" / "file1.txt"))
 
 @pytest.mark.asyncio
 async def test_directory_tree():

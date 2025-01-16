@@ -64,6 +64,15 @@ wheels = [
 ]
 
 [[package]]
+name = "elementpath"
+version = "4.7.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/44/7a10be09cb79d4e6900fc1f2a7db6fb7639c6b05f88b61106650b618fc52/elementpath-4.7.0.tar.gz", hash = "sha256:a2029dc8752fcfec49663d1ed1b412c6daf278c0c91938f50f63c4fe9ed1848e", size = 357225 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/eb/c4fac84745a84d3bc0fd481cf8c204f60bce367a19d8f9182a195ed6d42a/elementpath-4.7.0-py3-none-any.whl", hash = "sha256:607804a1b4250ac448c1e2bfaec4ee1c980b0a07cfdb0d9057b57102038ed480", size = 240649 },
+]
+
+[[package]]
 name = "gitdb"
 version = "4.0.12"
 source = { registry = "https://pypi.org/simple" }
@@ -180,6 +189,7 @@ dependencies = [
     { name = "gitpython" },
     { name = "mcp" },
     { name = "pydantic" },
+    { name = "xmlschema" },
 ]
 
 [package.optional-dependencies]
@@ -197,6 +207,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.25.0" },
+    { name = "xmlschema", specifier = ">=3.4.3" },
 ]
 
 [[package]]
@@ -396,4 +407,16 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/4b/4d/938bd85e5bf2edeec766267a5015ad969730bb91e31b44021dfe8b22df6c/uvicorn-0.34.0.tar.gz", hash = "sha256:404051050cd7e905de2c9a7e61790943440b3416f49cb409f965d9dcd0fa73e9", size = 76568 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/61/14/33a3a1352cfa71812a3a21e8c9bfb83f60b0011f5e36f2b1399d51928209/uvicorn-0.34.0-py3-none-any.whl", hash = "sha256:023dc038422502fa28a09c7a30bf2b6991512da7dcdb8fd35fe57cfc154126f4", size = 62315 },
+]
+
+[[package]]
+name = "xmlschema"
+version = "3.4.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "elementpath" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/11/ca/56579e6b4558c3c06902fe6647280345da8087f080c86e85166fd2131f8d/xmlschema-3.4.3.tar.gz", hash = "sha256:0c638dac81c7d6c9da9a8d7544402c48cffe7ee0e13cc47fc0c18794d1395dfb", size = 585144 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5a/49/ff75976757b23d6345ec1021fd0d2480d7ceed66d285e31556ac1147858d/xmlschema-3.4.3-py3-none-any.whl", hash = "sha256:eea4e5a1aac041b546ebe7b2eb68eb5eaebf5c5258e573cfc182375676b2e4e3", size = 417847 },
 ]

@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 from pathlib import Path
 from typing import Any
 from enum import Enum
@@ -11,12 +12,13 @@ import git
 from mcp_server_code_assist.tools.models import (
     FileCreate, FileDelete, FileModify, FileRewrite,
     GitBase, GitAdd, GitCommit, GitDiff, GitCreateBranch,
-    GitCheckout, GitShow, GitLog
+    GitCheckout, GitShow, GitLog, ListDirectory
 )
 from mcp_server_code_assist.tools.file_tools import FileTools
 from mcp_server_code_assist.tools.git_functions import git_status, git_diff_unstaged, git_diff_staged, git_diff, git_log, git_show
 
 class CodeAssistTools(str, Enum):
+    LIST_DIRECTORY = "list_directory"
     FILE_CREATE = "file_create"
     FILE_DELETE = "file_delete" 
     FILE_MODIFY = "file_modify"
@@ -81,6 +83,11 @@ async def serve(working_dir: Path | None) -> None:
     @server.list_tools()
     async def list_tools() -> list[Tool]:
         return [
+            Tool(
+                name=CodeAssistTools.LIST_DIRECTORY,
+                description="Lists contents of a directory",
+                inputSchema=ListDirectory.schema(),
+            ),
             Tool(
                 name=CodeAssistTools.FILE_CREATE,
                 description="Creates a new file with content",
@@ -161,6 +168,14 @@ async def serve(working_dir: Path | None) -> None:
     @server.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         match name:
+            case CodeAssistTools.LIST_DIRECTORY:
+                result = await FileTools.list_directory(
+                    arguments["path"],
+                    arguments.get("recursive", False),
+                    arguments.get("include_hidden", False)
+                )
+                return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
             case CodeAssistTools.FILE_CREATE:
                 result = await FileTools.create_file(arguments["path"], arguments.get("content", ""))
                 return [TextContent(type="text", text=result)]

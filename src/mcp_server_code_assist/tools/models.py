@@ -42,6 +42,11 @@ class GitShow(GitBase):
 class GitLog(GitBase):
     max_count: int = 10
 
+class ListDirectory(BaseModel):
+    path: Union[str, Path]
+    recursive: bool = False
+    include_hidden: bool = False
+
 class RepositoryOperation(BaseModel):
     path: str
     content: Optional[str] = None
