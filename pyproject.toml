@@ -1,12 +1,14 @@
 [project]
 name = "mcp-server-code-assist"
-version = "0.1.1"
+version = "0.1.2"
 description = "MCP Code Assist Server"
 requires-python = ">=3.11"
 dependencies = [
     "aiofiles>=24.0.0",
     "gitpython>=3.1.40",
-    "pydantic>=2.0.0"
+    "pydantic>=2.0.0",
+    "click>=8.1.7",
+    "mcp>=1.2.0"
 ]
 
 [project.scripts]
