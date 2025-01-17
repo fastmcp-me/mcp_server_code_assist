@@ -40,10 +40,21 @@ class FileTools(BaseTools):
 
     async def delete_file(self, path: str) -> str:
         path = await self.validate_path(path)
-        if path.is_file():
-            path.unlink()
-            return f"Deleted file: {path}"
-        return f"Path not found: {path}"
+        if not path.is_file():
+            return f"Path not found: {path}"
+
+        # Create trash directory
+        trash_dir = path.parent / ".mcp_server_code_assist_trash"
+        trash_dir.mkdir(exist_ok=True)
+
+        # Move file to trash with timestamp to avoid conflicts
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        trash_path = trash_dir / f"{path.name}_{timestamp}"
+        path.rename(trash_path)
+
+        return f"Moved file to trash: {trash_path}"
 
     async def modify_file(self, path: str, replacements: dict[str, str]) -> str:
         path = await self.validate_path(path)

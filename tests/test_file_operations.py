@@ -60,8 +60,16 @@ async def test_create_delete_file(file_tools):
     assert test_file.read_text() == content
 
     # Test delete
-    await file_tools.delete_file(str(test_file))
+    result = await file_tools.delete_file(str(test_file))
+    assert "Moved file to trash" in result
     assert not test_file.exists()
+
+    # Verify file is in trash
+    trash_dir = TEST_DIR / ".mcp_server_code_assist_trash"
+    assert trash_dir.exists()
+    trash_files = list(trash_dir.glob("new_file.txt_*"))
+    assert len(trash_files) == 1
+    assert trash_files[0].read_text() == content
 
 
 @pytest.mark.asyncio
