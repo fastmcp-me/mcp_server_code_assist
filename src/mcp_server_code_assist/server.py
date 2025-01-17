@@ -1,26 +1,37 @@
-import logging
 import os
-import json
+from enum import Enum
 from pathlib import Path
 from typing import Any
-from enum import Enum
-from mcp.server import Server 
-from mcp.server.session import ServerSession
-from mcp.server.stdio import stdio_server
-from mcp.types import ClientCapabilities, TextContent, Tool, ListRootsResult, RootsCapability
+
 import git
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import TextContent, Tool
+
+from mcp_server_code_assist.tools.tools_manager import get_file_tools
+from mcp_server_code_assist.tools.git_functions import git_diff, git_diff_staged, git_diff_unstaged, git_log, git_show, git_status
 from mcp_server_code_assist.tools.models import (
-    FileCreate, FileDelete, FileModify, FileRewrite, FileRead,
-    GitBase, GitAdd, GitCommit, GitDiff, GitCreateBranch,
-    GitCheckout, GitShow, GitLog, ListDirectory
+    FileCreate,
+    FileDelete,
+    FileModify,
+    FileRead,
+    FileRewrite,
+    GitAdd,
+    GitBase,
+    GitCheckout,
+    GitCommit,
+    GitCreateBranch,
+    GitDiff,
+    GitLog,
+    GitShow,
+    ListDirectory,
 )
-from mcp_server_code_assist.tools.file_tools import FileTools
-from mcp_server_code_assist.tools.git_functions import git_status, git_diff_unstaged, git_diff_staged, git_diff, git_log, git_show
+
 
 class CodeAssistTools(str, Enum):
     LIST_DIRECTORY = "list_directory"
     FILE_CREATE = "file_create"
-    FILE_DELETE = "file_delete" 
+    FILE_DELETE = "file_delete"
     FILE_MODIFY = "file_modify"
     FILE_REWRITE = "file_rewrite"
     FILE_READ = "file_read"
@@ -36,54 +47,52 @@ class CodeAssistTools(str, Enum):
     GIT_CHECKOUT = "git_checkout"
     GIT_SHOW = "git_show"
 
+
 async def process_instruction(instruction: dict[str, Any], repo_path: Path) -> dict[str, Any]:
-    FileTools.init_allowed_paths([str(repo_path)])
+    file_tools = get_file_tools([str(repo_path)])
     try:
-        match instruction['type']:
-            case 'read_file':
-                path = str(repo_path / instruction['path'])
-                content = await FileTools.read_file(path)
-                return {'content': content}
-            
-            case 'read_multiple':
-                paths = [str(repo_path / p) for p in instruction['paths']]
-                contents = await FileTools.read_multiple_files(paths)
-                contents_dict = {os.path.basename(k): v for k,v in contents.items()}
-                return {'contents': contents_dict}
-            
-            case 'create_file':
-                path = str(repo_path / instruction['path'])
-                result = await FileTools.create_file(path, instruction.get('content', ''))
-                return {'result': result}
-                
-            case 'modify_file':
-                path = str(repo_path / instruction['path'])
-                result = await FileTools.modify_file(path, instruction['replacements'])
-                return {'result': result}
-                
-            case 'rewrite_file':
-                path = str(repo_path / instruction['path'])
-                result = await FileTools.rewrite_file(path, instruction['content'])
-                return {'result': result}
-                
-            case 'delete_file':
-                path = str(repo_path / instruction['path'])
-                result = await FileTools.delete_file(path)
-                return {'result': result}
-            
+        match instruction["type"]:
+            case "read_file":
+                path = str(repo_path / instruction["path"])
+                content = await file_tools.read_file(path)
+                return {"content": content}
+
+            case "read_multiple":
+                paths = [str(repo_path / p) for p in instruction["paths"]]
+                contents = await file_tools.read_multiple_files(paths)
+                contents_dict = {os.path.basename(k): v for k, v in contents.items()}
+                return {"contents": contents_dict}
+
+            case "create_file":
+                path = str(repo_path / instruction["path"])
+                result = await file_tools.create_file(path, instruction.get("content", ""))
+                return {"result": result}
+
+            case "modify_file":
+                path = str(repo_path / instruction["path"])
+                result = await file_tools.modify_file(path, instruction["replacements"])
+                return {"result": result}
+
+            case "rewrite_file":
+                path = str(repo_path / instruction["path"])
+                result = await file_tools.rewrite_file(path, instruction["content"])
+                return {"result": result}
+
+            case "delete_file":
+                path = str(repo_path / instruction["path"])
+                result = await file_tools.delete_file(path)
+                return {"result": result}
+
             case _:
-                return {'error': 'Invalid instruction type'}
+                return {"error": "Invalid instruction type"}
 
     except Exception as e:
-        return {'error': str(e)}
+        return {"error": str(e)}
+
 
 async def serve(working_dir: Path | None) -> None:
-    logger = logging.getLogger(__name__)
     server = Server("mcp-code-assist")
-    
-    # Initialize allowed paths with working directory
-    if working_dir:
-        FileTools.init_allowed_paths([str(working_dir)])
+    allowed_paths = [str(working_dir)] if working_dir else []
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
@@ -177,29 +186,33 @@ async def serve(working_dir: Path | None) -> None:
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+        repo_path = arguments.get("repo_path", "")
+        paths = [repo_path] if repo_path else allowed_paths
+        file_tools = get_file_tools(paths)
+        
         match name:
             case CodeAssistTools.LIST_DIRECTORY:
-                result = await FileTools.list_directory(arguments["path"])
+                result = await file_tools.list_directory(arguments["path"])
                 return [TextContent(type="text", text=result)]
 
             case CodeAssistTools.FILE_CREATE:
-                result = await FileTools.create_file(arguments["path"], arguments.get("content", ""))
+                result = await file_tools.create_file(arguments["path"], arguments.get("content", ""))
                 return [TextContent(type="text", text=result)]
 
             case CodeAssistTools.FILE_DELETE:
-                result = await FileTools.delete_file(arguments["path"])
+                result = await file_tools.delete_file(arguments["path"])
                 return [TextContent(type="text", text=result)]
 
             case CodeAssistTools.FILE_MODIFY:
-                result = await FileTools.modify_file(arguments["path"], arguments["replacements"])
+                result = await file_tools.modify_file(arguments["path"], arguments["replacements"])
                 return [TextContent(type="text", text=result)]
 
             case CodeAssistTools.FILE_REWRITE:
-                result = await FileTools.rewrite_file(arguments["path"], arguments["content"])
+                result = await file_tools.rewrite_file(arguments["path"], arguments["content"])
                 return [TextContent(type="text", text=result)]
 
             case CodeAssistTools.FILE_READ:
-                content = await FileTools.read_file(arguments["path"])
+                content = await file_tools.read_file(arguments["path"])
                 return [TextContent(type="text", text=content)]
 
             case CodeAssistTools.GIT_STATUS:

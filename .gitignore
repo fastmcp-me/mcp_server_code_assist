@@ -1,2 +1,13 @@
 __pycache__
 .venv
+.ruff_cache/
+
+# Python
+*.py[cod]
+.pytest_cache/
+
+dist/
+build/
+*.egg-info/
+
+.windsurfrules

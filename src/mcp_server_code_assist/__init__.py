@@ -1,8 +1,11 @@
-import click
-from pathlib import Path
 import logging
 import sys
+from pathlib import Path
+
+import click
+
 from .server import serve
+
 
 @click.command()
 @click.option("--working-dir", "-w", type=Path, help="Working directory path")
@@ -19,6 +22,7 @@ def main(working_dir: Path | None, verbose: bool) -> None:
 
     logging.basicConfig(level=logging_level, stream=sys.stderr)
     asyncio.run(serve(working_dir))
+
 
 if __name__ == "__main__":
     main()

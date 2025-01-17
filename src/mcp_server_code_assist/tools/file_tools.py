@@ -1,162 +1,145 @@
-from pathlib import Path
-import os
-import shutil
+import asyncio
 import difflib
 import fnmatch
-import json
-from typing import Union, Dict, Tuple, Optional, Set
-import git
-import asyncio
+import os
+import shutil
 import sys
+from pathlib import Path
 
-class FileTools:
-    _allowed_paths: list[str] = []
+import git
 
-    @classmethod
-    def init_allowed_paths(cls, paths: list[str]):
-        cls._allowed_paths = [os.path.abspath(p) for p in paths]
+from mcp_server_code_assist.base_tools import BaseTools
 
-    @classmethod
-    async def validate_path(cls, path: str) -> str:
+
+class FileTools(BaseTools):
+    def is_valid_operation(self, path: Path) -> bool:
+        """Validate if operation can be performed on path"""
+        return path.exists() and path.is_file()
+
+    async def validate_path(self, path: str) -> Path:
         abs_path = os.path.abspath(path)
-        if not any(abs_path.startswith(p) for p in cls._allowed_paths):
+        if not any(abs_path.startswith(p) for p in self.allowed_paths):
             raise ValueError(f"Path {path} is outside allowed directories")
-        return abs_path
+        return Path(abs_path)
 
-    @classmethod
-    async def read_file(cls, path: str) -> str:
-        path = await cls.validate_path(path)
-        return Path(path).read_text()
+    async def read_file(self, path: str) -> str:
+        path = await self.validate_path(path)
+        try:
+            return path.read_text()
+        except Exception as e:
+            self.handle_error(e, {"operation": "read", "path": str(path)})
 
-    @classmethod
-    async def write_file(cls, path: str, content: str) -> None:
-        path = await cls.validate_path(path)
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        Path(path).write_text(content)
+    async def write_file(self, path: str, content: str) -> None:
+        path = await self.validate_path(path)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        except Exception as e:
+            self.handle_error(e, {"operation": "write", "path": str(path)})
 
-    @classmethod
-    async def read_multiple_files(cls, paths: list[str]) -> Dict[str, str]:
+    async def read_multiple_files(self, paths: list[str]) -> dict[str, str]:
         result = {}
         for path in paths:
             try:
-                content = await cls.read_file(path)
+                content = await self.read_file(path)
                 result[path] = content
             except Exception as e:
                 result[path] = str(e)
         return result
 
-    @classmethod
-    async def create_file(cls, path: str, content: str = "") -> str:
-        await cls.write_file(path, content)
+    async def create_file(self, path: str, content: str = "") -> str:
+        await self.write_file(path, content)
         return f"Created file: {path}"
-        
-    @classmethod
-    async def delete_file(cls, path: str) -> str:
-        path = await cls.validate_path(path)
-        path_obj = Path(path)
-        if path_obj.is_file():
-            path_obj.unlink()
+
+    async def delete_file(self, path: str) -> str:
+        path = await self.validate_path(path)
+        if path.is_file():
+            path.unlink()
             return f"Deleted file: {path}"
-        elif path_obj.is_dir():
+        elif path.is_dir():
             shutil.rmtree(path)
             return f"Deleted directory: {path}"
         return f"Path not found: {path}"
 
-    @classmethod
-    async def modify_file(cls, path: str, replacements: Dict[str, str]) -> str:
-        path = await cls.validate_path(path)
-        content = await cls.read_file(path)
+    async def modify_file(self, path: str, replacements: dict[str, str]) -> str:
+        path = await self.validate_path(path)
+        content = await self.read_file(path)
         original = content
-        
+
         for old, new in replacements.items():
             content = content.replace(old, new)
-            
-        await cls.write_file(path, content)
-        return cls.generate_diff(original, content)
 
-    @classmethod
-    async def rewrite_file(cls, path: str, content: str) -> str:
-        path = await cls.validate_path(path)
-        original = await cls.read_file(path) if Path(path).exists() else ""
-        await cls.write_file(path, content)
-        return cls.generate_diff(original, content)
+        await self.write_file(path, content)
+        return self.generate_diff(original, content)
+
+    async def rewrite_file(self, path: str, content: str) -> str:
+        path = await self.validate_path(path)
+        original = await self.read_file(path) if path.exists() else ""
+        await self.write_file(path, content)
+        return self.generate_diff(original, content)
 
     @staticmethod
     def generate_diff(original: str, modified: str) -> str:
-        diff = difflib.unified_diff(
-            original.splitlines(keepends=True),
-            modified.splitlines(keepends=True),
-            fromfile='original',
-            tofile='modified'
-        )
-        return ''.join(diff)
+        diff = difflib.unified_diff(original.splitlines(keepends=True), modified.splitlines(keepends=True), fromfile="original", tofile="modified")
+        return "".join(diff)
 
-    @classmethod
-    async def list_directory(cls, path: str) -> str:
+    async def list_directory(self, path: str) -> str:
         """List contents of a directory using system ls/dir command.
-        
+
         Args:
             path: Directory path to list
-            
+
         Returns:
             Raw command output as string
         """
-        path = await cls.validate_path(path)
-        if not os.path.isdir(path):
+        path = await self.validate_path(path)
+        if not path.is_dir():
             raise ValueError(f"Path {path} is not a directory")
-            
+
         if sys.platform == "win32":
             cmd = ["dir", path]
         else:
             cmd = ["ls", "-la", path]
-            
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+
+        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         stdout, _ = await proc.communicate()
         return stdout.decode()
 
-    @classmethod
-    async def create_directory(cls, path: str) -> None:
-        path = await cls.validate_path(path)
-        Path(path).mkdir(parents=True, exist_ok=True)
+    async def create_directory(self, path: str) -> None:
+        path = await self.validate_path(path)
+        path.mkdir(parents=True, exist_ok=True)
 
-    @classmethod
-    def _load_gitignore(cls, path: str) -> list[str]:
+    def _load_gitignore(self, path: str) -> list[str]:
         gitignore_path = os.path.join(path, ".gitignore")
         patterns = []
         if os.path.exists(gitignore_path):
-            with open(gitignore_path, 'r') as f:
+            with open(gitignore_path) as f:
                 for line in f:
                     line = line.strip()
-                    if line and not line.startswith('#'):
+                    if line and not line.startswith("#"):
                         patterns.append(line)
         return patterns
 
-    @classmethod
-    def _get_tracked_files(cls, repo_path: str) -> Optional[Set[str]]:
+    def _get_tracked_files(self, repo_path: str) -> set[str] | None:
         try:
             repo = git.Repo(repo_path)
             return set(repo.git.ls_files().splitlines())
         except git.exc.InvalidGitRepositoryError:
             return None
 
-    @classmethod
-    async def directory_tree(cls, path: str) -> Tuple[str, int, int]:
-        path = await cls.validate_path(path)
-        base_path = Path(path)
+    async def directory_tree(self, path: str) -> tuple[str, int, int]:
+        path = await self.validate_path(path)
+        base_path = path
 
         # Try git tracking first
-        tracked_files = cls._get_tracked_files(path)
-        gitignore = cls._load_gitignore(path) if tracked_files is None else []
-        
-        def gen_tree(path: Path, prefix: str = "") -> Tuple[list[str], int, int]:
+        tracked_files = self._get_tracked_files(path)
+        gitignore = self._load_gitignore(path) if tracked_files is None else []
+
+        def gen_tree(path: Path, prefix: str = "") -> tuple[list[str], int, int]:
             entries = []
             dir_count = 0
             file_count = 0
-            
+
             items = sorted(path.iterdir(), key=lambda x: (x.is_file(), x.name))
             for i, item in enumerate(items):
                 rel_path = str(item.relative_to(base_path))
@@ -165,15 +148,15 @@ class FileTools:
                 if tracked_files is not None:
                     if rel_path not in tracked_files and not any(str(p.relative_to(base_path)) in tracked_files for p in item.rglob("*") if p.is_file()):
                         continue
-                else:  
+                else:
                     # Use gitignore
-                    if cls._should_ignore(rel_path, gitignore):
+                    if self._should_ignore(rel_path, gitignore):
                         continue
-                    
+
                 is_last = i == len(items) - 1
                 curr_prefix = "└── " if is_last else "├── "
                 curr_line = prefix + curr_prefix + item.name
-                
+
                 if item.is_dir():
                     next_prefix = prefix + ("    " if is_last else "│   ")
                     subtree, sub_dirs, sub_files = gen_tree(item, next_prefix)
@@ -187,25 +170,24 @@ class FileTools:
                         continue
                     entries.append(curr_line)
                     file_count += 1
-                    
+
             return entries, dir_count, file_count
-            
-        tree_lines, total_dirs, total_files = gen_tree(Path(path))
+
+        tree_lines, total_dirs, total_files = gen_tree(path)
         return "\n".join(tree_lines), total_dirs, total_files
 
-    @classmethod
-    def _should_ignore(cls, path: str, patterns: list[str]) -> bool:
+    def _should_ignore(self, path: str, patterns: list[str]) -> bool:
         if not patterns:
             return False
 
         parts = Path(path).parts
         for pattern in patterns:
             pattern = pattern.strip()
-            if not pattern or pattern.startswith('#'):
+            if not pattern or pattern.startswith("#"):
                 continue
 
-            if pattern.endswith('/'):
-                pattern = pattern.rstrip('/')
+            if pattern.endswith("/"):
+                pattern = pattern.rstrip("/")
                 if pattern in parts:
                     return True
             else:
@@ -217,25 +199,24 @@ class FileTools:
 
         return False
 
-    @classmethod
-    async def search_files(cls, path: str, pattern: str, excludes: Optional[list[str]] = None) -> list[str]:
-        path = await cls.validate_path(path)
-        gitignore = cls._load_gitignore(path)
+    async def search_files(self, path: str, pattern: str, excludes: list[str] | None = None) -> list[str]:
+        path = await self.validate_path(path)
+        gitignore = self._load_gitignore(path)
         if excludes:
             gitignore.extend(excludes)
-            
+
         results = []
         for root, _, files in os.walk(path):
             rel_root = os.path.relpath(root, path)
-            if rel_root != "." and cls._should_ignore(rel_root, gitignore):
+            if rel_root != "." and self._should_ignore(rel_root, gitignore):
                 continue
-                
+
             for file in files:
                 rel_path = os.path.join(rel_root, file)
-                if rel_path != "." and cls._should_ignore(rel_path, gitignore):
+                if rel_path != "." and self._should_ignore(rel_path, gitignore):
                     continue
-                    
+
                 if pattern in file or fnmatch.fnmatch(file, pattern):
                     results.append(os.path.join(root, file))
-                    
+
         return results
