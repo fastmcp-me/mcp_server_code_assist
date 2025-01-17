@@ -6,6 +6,8 @@ import fnmatch
 import json
 from typing import Union, Dict, Tuple, Optional, Set
 import git
+import asyncio
+import sys
 
 class FileTools:
     _allowed_paths: list[str] = []
@@ -90,51 +92,31 @@ class FileTools:
         return ''.join(diff)
 
     @classmethod
-    async def list_directory(cls, path: str, recursive: bool = False, include_hidden: bool = False) -> list[dict]:
-        """List contents of a directory.
+    async def list_directory(cls, path: str) -> str:
+        """List contents of a directory using system ls/dir command.
         
         Args:
             path: Directory path to list
-            recursive: Whether to list subdirectories recursively
-            include_hidden: Whether to include hidden files/directories
             
         Returns:
-            List of dicts with file/directory info:
-            {
-                "name": str,
-                "path": str,
-                "type": "file"|"directory",
-                "size": int,  # for files only
-                "children": list  # for directories when recursive=True
-            }
+            Raw command output as string
         """
         path = await cls.validate_path(path)
         if not os.path.isdir(path):
             raise ValueError(f"Path {path} is not a directory")
             
-        result = []
-        for entry in os.scandir(path):
-            if not include_hidden and entry.name.startswith('.'):
-                continue
-                
-            info = {
-                "name": entry.name,
-                "path": str(Path(entry.path).relative_to(path)),
-                "type": "directory" if entry.is_dir() else "file",
-            }
+        if sys.platform == "win32":
+            cmd = ["dir", path]
+        else:
+            cmd = ["ls", "-la", path]
             
-            if entry.is_file():
-                info["size"] = entry.stat().st_size
-            elif recursive and entry.is_dir():
-                info["children"] = await cls.list_directory(
-                    entry.path,
-                    recursive=True,
-                    include_hidden=include_hidden
-                )
-                
-            result.append(info)
-            
-        return result
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        return stdout.decode()
 
     @classmethod
     async def create_directory(cls, path: str) -> None:

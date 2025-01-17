@@ -47,8 +47,6 @@ class GitLog(GitBase):
 
 class ListDirectory(BaseModel):
     path: Union[str, Path]
-    recursive: bool = False
-    include_hidden: bool = False
 
 class RepositoryOperation(BaseModel):
     path: str

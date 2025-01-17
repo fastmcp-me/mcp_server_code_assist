@@ -57,27 +57,13 @@ async def test_list_directory():
     (TEST_DIR / "dir1" / "file2.txt").write_text("content2")
     (TEST_DIR / "dir1" / "subdir").mkdir()
     (TEST_DIR / "dir1" / "subdir" / "file3.txt").write_text("content3")
-    (TEST_DIR / ".hidden_dir").mkdir()
-    (TEST_DIR / ".hidden_file").write_text("hidden")
 
     # Test basic listing
-    result = await FileTools.list_directory(str(TEST_DIR / "dir1"), recursive=False, include_hidden=False)
-    assert len(result) == 3
-    assert any(item["name"] == "file1.txt" and item["type"] == "file" for item in result)
-    assert any(item["name"] == "file2.txt" and item["type"] == "file" for item in result)
-    assert any(item["name"] == "subdir" and item["type"] == "directory" for item in result)
-
-    # Test recursive listing
-    result = await FileTools.list_directory(str(TEST_DIR / "dir1"), recursive=True, include_hidden=False)
-    assert len(result) == 3
-    subdir = next(item for item in result if item["name"] == "subdir")
-    assert "children" in subdir
-    assert len(subdir["children"]) == 1
-    assert subdir["children"][0]["name"] == "file3.txt"
-
-    # Test hidden files
-    result = await FileTools.list_directory(str(TEST_DIR), recursive=False, include_hidden=True)
-    assert any(item["name"].startswith(".hidden") for item in result)
+    result = await FileTools.list_directory(str(TEST_DIR / "dir1"))
+    assert isinstance(result, str)
+    assert "file1.txt" in result
+    assert "file2.txt" in result
+    assert "subdir" in result
 
     # Test error on non-directory
     with pytest.raises(ValueError):

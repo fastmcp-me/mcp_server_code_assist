@@ -179,12 +179,8 @@ async def serve(working_dir: Path | None) -> None:
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         match name:
             case CodeAssistTools.LIST_DIRECTORY:
-                result = await FileTools.list_directory(
-                    arguments["path"],
-                    arguments.get("recursive", False),
-                    arguments.get("include_hidden", False)
-                )
-                return [TextContent(type="text", text=json.dumps(result, indent=2))]
+                result = await FileTools.list_directory(arguments["path"])
+                return [TextContent(type="text", text=result)]
 
             case CodeAssistTools.FILE_CREATE:
                 result = await FileTools.create_file(arguments["path"], arguments.get("content", ""))
