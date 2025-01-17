@@ -1,91 +1,73 @@
-import os
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
-import git
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from mcp_server_code_assist.tools.tools_manager import get_file_tools
-from mcp_server_code_assist.tools.git_functions import git_diff, git_diff_staged, git_diff_unstaged, git_log, git_show, git_status
-from mcp_server_code_assist.tools.models import (
-    FileCreate,
-    FileDelete,
-    FileModify,
-    FileRead,
-    FileRewrite,
-    GitAdd,
-    GitBase,
-    GitCheckout,
-    GitCommit,
-    GitCreateBranch,
-    GitDiff,
-    GitLog,
-    GitShow,
-    ListDirectory,
-)
+from mcp_server_code_assist.tools.git_functions import git_diff, git_log, git_show, git_status
+from mcp_server_code_assist.tools.models import FileCreate, FileDelete, FileModify, FileRead, FileRewrite, GitDiff, GitLog, GitShow, GitStatus, ListDirectory
+from mcp_server_code_assist.tools.tools_manager import get_dir_tools, get_file_tools
 
 
 class CodeAssistTools(str, Enum):
+    # Directory operations
     LIST_DIRECTORY = "list_directory"
-    FILE_CREATE = "file_create"
-    FILE_DELETE = "file_delete"
-    FILE_MODIFY = "file_modify"
-    FILE_REWRITE = "file_rewrite"
-    FILE_READ = "file_read"
+    CREATE_DIRECTORY = "create_directory"
+
+    # File operations
+    CREATE_FILE = "create_file"
+    DELETE_FILE = "delete_file"
+    MODIFY_FILE = "modify_file"
+    REWRITE_FILE = "rewrite_file"
+    READ_FILE = "read_file"
+    FILE_TREE = "file_tree"
+
+    # Git operations
     GIT_STATUS = "git_status"
-    GIT_DIFF_UNSTAGED = "git_diff_unstaged"
-    GIT_DIFF_STAGED = "git_diff_staged"
     GIT_DIFF = "git_diff"
+    GIT_LOG = "git_log"
+    GIT_SHOW = "git_show"
     GIT_COMMIT = "git_commit"
     GIT_ADD = "git_add"
     GIT_RESET = "git_reset"
-    GIT_LOG = "git_log"
     GIT_CREATE_BRANCH = "git_create_branch"
     GIT_CHECKOUT = "git_checkout"
-    GIT_SHOW = "git_show"
 
 
 async def process_instruction(instruction: dict[str, Any], repo_path: Path) -> dict[str, Any]:
     file_tools = get_file_tools([str(repo_path)])
+    dir_tools = get_dir_tools([str(repo_path)])
     try:
         match instruction["type"]:
             case "read_file":
-                path = str(repo_path / instruction["path"])
-                content = await file_tools.read_file(path)
-                return {"content": content}
-
+                return {"content": await file_tools.read_file(instruction["path"])}
             case "read_multiple":
-                paths = [str(repo_path / p) for p in instruction["paths"]]
-                contents = await file_tools.read_multiple_files(paths)
-                contents_dict = {os.path.basename(k): v for k, v in contents.items()}
-                return {"contents": contents_dict}
-
+                return {"contents": await file_tools.read_multiple_files(instruction["paths"])}
             case "create_file":
-                path = str(repo_path / instruction["path"])
-                result = await file_tools.create_file(path, instruction.get("content", ""))
-                return {"result": result}
-
+                return {"message": await file_tools.create_file(instruction["path"], instruction["content"])}
             case "modify_file":
-                path = str(repo_path / instruction["path"])
-                result = await file_tools.modify_file(path, instruction["replacements"])
-                return {"result": result}
-
+                return {"diff": await file_tools.modify_file(instruction["path"], instruction["replacements"])}
             case "rewrite_file":
-                path = str(repo_path / instruction["path"])
-                result = await file_tools.rewrite_file(path, instruction["content"])
-                return {"result": result}
-
+                return {"diff": await file_tools.rewrite_file(instruction["path"], instruction["content"])}
             case "delete_file":
-                path = str(repo_path / instruction["path"])
-                result = await file_tools.delete_file(path)
-                return {"result": result}
-
+                return {"message": await file_tools.delete_file(instruction["path"])}
+            case "file_tree":
+                tree, dirs, files = await file_tools.file_tree(instruction["path"])
+                return {"tree": tree, "directories": dirs, "files": files}
+            case "list_directory":
+                return {"content": await dir_tools.list_directory(instruction["path"])}
+            case "git_status":
+                return {"status": git_status(repo_path)}
+            case "git_diff":
+                return {"diff": git_diff(repo_path)}
+            case "git_log":
+                return {"log": git_log(repo_path)}
+            case "git_show":
+                return {"show": git_show(repo_path, instruction["commit"])}
             case _:
-                return {"error": "Invalid instruction type"}
-
+                raise ValueError(f"Unknown instruction type: {instruction['type']}")
     except Exception as e:
         return {"error": str(e)}
 
@@ -97,90 +79,68 @@ async def serve(working_dir: Path | None) -> None:
     @server.list_tools()
     async def list_tools() -> list[Tool]:
         return [
+            # Directory operations
             Tool(
                 name=CodeAssistTools.LIST_DIRECTORY,
-                description="Lists contents of a directory",
-                inputSchema=ListDirectory.schema(),
+                description="Lists directory contents using system ls/dir command",
+                inputSchema=ListDirectory.model_json_schema(),
             ),
             Tool(
-                name=CodeAssistTools.FILE_CREATE,
+                name=CodeAssistTools.CREATE_DIRECTORY,
+                description="Creates a new directory",
+                inputSchema=ListDirectory.model_json_schema(),
+            ),
+            # File operations
+            Tool(
+                name=CodeAssistTools.CREATE_FILE,
                 description="Creates a new file with content",
-                inputSchema=FileCreate.schema(),
+                inputSchema=FileCreate.model_json_schema(),
             ),
             Tool(
-                name=CodeAssistTools.FILE_DELETE,
+                name=CodeAssistTools.DELETE_FILE,
                 description="Deletes a file",
-                inputSchema=FileDelete.schema(),
+                inputSchema=FileDelete.model_json_schema(),
             ),
             Tool(
-                name=CodeAssistTools.FILE_MODIFY,
-                description="Modifies file content using search/replace",
-                inputSchema=FileModify.schema(),
+                name=CodeAssistTools.MODIFY_FILE,
+                description="Modifies parts of a file using string replacements",
+                inputSchema=FileModify.model_json_schema(),
             ),
             Tool(
-                name=CodeAssistTools.FILE_REWRITE,
+                name=CodeAssistTools.REWRITE_FILE,
                 description="Rewrites entire file content",
-                inputSchema=FileRewrite.schema(),
+                inputSchema=FileRewrite.model_json_schema(),
             ),
             Tool(
-                name=CodeAssistTools.FILE_READ,
-                description="Reads contents of a file",
-                inputSchema=FileRead.schema(),
+                name=CodeAssistTools.READ_FILE,
+                description="Reads file content",
+                inputSchema=FileRead.model_json_schema(),
             ),
+            Tool(
+                name=CodeAssistTools.FILE_TREE,
+                description="Lists directory tree structure with git tracking support",
+                inputSchema=ListDirectory.model_json_schema(),
+            ),
+            # Git operations
             Tool(
                 name=CodeAssistTools.GIT_STATUS,
-                description="Shows the working tree status",
-                inputSchema=GitBase.schema(),
-            ),
-            Tool(
-                name=CodeAssistTools.GIT_DIFF_UNSTAGED,
-                description="Shows changes in the working directory that are not yet staged",
-                inputSchema=GitBase.schema(),
-            ),
-            Tool(
-                name=CodeAssistTools.GIT_DIFF_STAGED,
-                description="Shows changes that are staged for commit",
-                inputSchema=GitBase.schema(),
+                description="Shows git repository status",
+                inputSchema=GitStatus.model_json_schema(),
             ),
             Tool(
                 name=CodeAssistTools.GIT_DIFF,
-                description="Shows differences between branches or commits",
-                inputSchema=GitDiff.schema(),
-            ),
-            Tool(
-                name=CodeAssistTools.GIT_COMMIT,
-                description="Records changes to the repository",
-                inputSchema=GitCommit.schema(),
-            ),
-            Tool(
-                name=CodeAssistTools.GIT_ADD,
-                description="Adds file contents to the staging area",
-                inputSchema=GitAdd.schema(),
-            ),
-            Tool(
-                name=CodeAssistTools.GIT_RESET,
-                description="Unstages all staged changes",
-                inputSchema=GitBase.schema(),
+                description="Shows git diff",
+                inputSchema=GitDiff.model_json_schema(),
             ),
             Tool(
                 name=CodeAssistTools.GIT_LOG,
-                description="Shows the commit logs",
-                inputSchema=GitLog.schema(),
-            ),
-            Tool(
-                name=CodeAssistTools.GIT_CREATE_BRANCH,
-                description="Creates a new branch from an optional base branch",
-                inputSchema=GitCreateBranch.schema(),
-            ),
-            Tool(
-                name=CodeAssistTools.GIT_CHECKOUT,
-                description="Switches branches",
-                inputSchema=GitCheckout.schema(),
+                description="Shows git commit history",
+                inputSchema=GitLog.model_json_schema(),
             ),
             Tool(
                 name=CodeAssistTools.GIT_SHOW,
-                description="Shows the contents of a commit",
-                inputSchema=GitShow.schema(),
+                description="Shows git commit details",
+                inputSchema=GitShow.model_json_schema(),
             ),
         ]
 
@@ -189,87 +149,50 @@ async def serve(working_dir: Path | None) -> None:
         repo_path = arguments.get("repo_path", "")
         paths = [repo_path] if repo_path else allowed_paths
         file_tools = get_file_tools(paths)
-        
+        dir_tools = get_dir_tools(paths)
+
         match name:
+            # Directory operations
             case CodeAssistTools.LIST_DIRECTORY:
-                result = await file_tools.list_directory(arguments["path"])
-                return [TextContent(type="text", text=result)]
+                result = await dir_tools.list_directory(arguments["path"])
+                return [TextContent(result)]
+            case CodeAssistTools.FILE_TREE:
+                tree, dirs, files = await file_tools.file_tree(arguments["path"])
+                return [TextContent(f"{tree}\n\nTotal: {dirs} directories, {files} files")]
+            case CodeAssistTools.CREATE_DIRECTORY:
+                result = await dir_tools.create_directory(arguments["path"])
+                return [TextContent(result)]
 
-            case CodeAssistTools.FILE_CREATE:
-                result = await file_tools.create_file(arguments["path"], arguments.get("content", ""))
-                return [TextContent(type="text", text=result)]
-
-            case CodeAssistTools.FILE_DELETE:
-                result = await file_tools.delete_file(arguments["path"])
-                return [TextContent(type="text", text=result)]
-
-            case CodeAssistTools.FILE_MODIFY:
+            # File operations
+            case CodeAssistTools.READ_FILE:
+                result = await file_tools.read_file(arguments["path"])
+                return [TextContent(result)]
+            case CodeAssistTools.CREATE_FILE:
+                result = await file_tools.create_file(arguments["path"], arguments["content"])
+                return [TextContent(result)]
+            case CodeAssistTools.MODIFY_FILE:
                 result = await file_tools.modify_file(arguments["path"], arguments["replacements"])
-                return [TextContent(type="text", text=result)]
-
-            case CodeAssistTools.FILE_REWRITE:
+                return [TextContent(result)]
+            case CodeAssistTools.REWRITE_FILE:
                 result = await file_tools.rewrite_file(arguments["path"], arguments["content"])
-                return [TextContent(type="text", text=result)]
+                return [TextContent(result)]
+            case CodeAssistTools.DELETE_FILE:
+                result = await file_tools.delete_file(arguments["path"])
+                return [TextContent(result)]
 
-            case CodeAssistTools.FILE_READ:
-                content = await file_tools.read_file(arguments["path"])
-                return [TextContent(type="text", text=content)]
-
+            # Git operations
             case CodeAssistTools.GIT_STATUS:
-                repo = git.Repo(arguments["repo_path"])
-                status = git_status(repo)
-                return [TextContent(type="text", text=f"Repository status:\n{status}")]
-
-            case CodeAssistTools.GIT_DIFF_UNSTAGED:
-                repo = git.Repo(arguments["repo_path"])
-                diff = git_diff_unstaged(repo)
-                return [TextContent(type="text", text=f"Unstaged changes:\n{diff}")]
-
-            case CodeAssistTools.GIT_DIFF_STAGED:
-                repo = git.Repo(arguments["repo_path"])
-                diff = git_diff_staged(repo)
-                return [TextContent(type="text", text=f"Staged changes:\n{diff}")]
-
+                result = git_status(arguments["repo_path"])
+                return [TextContent(result)]
             case CodeAssistTools.GIT_DIFF:
-                repo = git.Repo(arguments["repo_path"])
-                diff = git_diff(repo, arguments["target"])
-                return [TextContent(type="text", text=f"Diff with {arguments['target']}:\n{diff}")]
-
-            case CodeAssistTools.GIT_COMMIT:
-                repo = git.Repo(arguments["repo_path"])
-                result = git_commit(repo, arguments["message"])
-                return [TextContent(type="text", text=result)]
-
-            case CodeAssistTools.GIT_ADD:
-                repo = git.Repo(arguments["repo_path"])
-                result = git_add(repo, arguments["files"])
-                return [TextContent(type="text", text=result)]
-
-            case CodeAssistTools.GIT_RESET:
-                repo = git.Repo(arguments["repo_path"])
-                result = git_reset(repo)
-                return [TextContent(type="text", text=result)]
-
+                result = git_diff(arguments["repo_path"])
+                return [TextContent(result)]
             case CodeAssistTools.GIT_LOG:
-                repo = git.Repo(arguments["repo_path"])
-                log = git_log(repo, arguments.get("max_count", 10))
-                return [TextContent(type="text", text="Commit history:\n" + "\n".join(log))]
-
-            case CodeAssistTools.GIT_CREATE_BRANCH:
-                repo = git.Repo(arguments["repo_path"])
-                result = git_create_branch(repo, arguments["branch_name"], arguments.get("base_branch"))
-                return [TextContent(type="text", text=result)]
-
-            case CodeAssistTools.GIT_CHECKOUT:
-                repo = git.Repo(arguments["repo_path"])
-                result = git_checkout(repo, arguments["branch_name"])
-                return [TextContent(type="text", text=result)]
-
+                result = git_log(arguments["repo_path"])
+                return [TextContent(result)]
             case CodeAssistTools.GIT_SHOW:
-                repo = git.Repo(arguments["repo_path"])
-                result = git_show(repo, arguments["revision"])
-                return [TextContent(type="text", text=result)]
-
+                result = git_show(arguments["repo_path"], arguments["commit"])
+                return [TextContent(result)]
             case _:
                 raise ValueError(f"Unknown tool: {name}")
 

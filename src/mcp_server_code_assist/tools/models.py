@@ -3,6 +3,8 @@ from pathlib import Path
 from pydantic import BaseModel
 
 
+# File operations
+# ====================================================================
 class FileCreate(BaseModel):
     path: str | Path
     content: str = ""
@@ -26,29 +28,28 @@ class FileRewrite(BaseModel):
     content: str
 
 
+class FileTree(BaseModel):
+    path: str
+
+
+# Directory operations
+# ====================================================================
+class ListDirectory(BaseModel):
+    path: str | Path
+
+
+class CreateDirectory(BaseModel):
+    path: str | Path
+
+
+# Git operations
+# ====================================================================
 class GitBase(BaseModel):
     repo_path: str
 
 
-class GitAdd(GitBase):
-    files: list[str]
-
-
-class GitCommit(GitBase):
-    message: str
-
-
 class GitDiff(GitBase):
     target: str
-
-
-class GitCreateBranch(GitBase):
-    branch_name: str
-    base_branch: str | None = None
-
-
-class GitCheckout(GitBase):
-    branch_name: str
 
 
 class GitShow(GitBase):
@@ -59,8 +60,8 @@ class GitLog(GitBase):
     max_count: int = 10
 
 
-class ListDirectory(BaseModel):
-    path: str | Path
+class GitStatus(GitBase):
+    repo_path: str
 
 
 class RepositoryOperation(BaseModel):

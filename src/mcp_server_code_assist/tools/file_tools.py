@@ -1,9 +1,6 @@
-import asyncio
 import difflib
 import fnmatch
 import os
-import shutil
-import sys
 from pathlib import Path
 
 import git
@@ -37,16 +34,6 @@ class FileTools(BaseTools):
         except Exception as e:
             self.handle_error(e, {"operation": "write", "path": str(path)})
 
-    async def read_multiple_files(self, paths: list[str]) -> dict[str, str]:
-        result = {}
-        for path in paths:
-            try:
-                content = await self.read_file(path)
-                result[path] = content
-            except Exception as e:
-                result[path] = str(e)
-        return result
-
     async def create_file(self, path: str, content: str = "") -> str:
         await self.write_file(path, content)
         return f"Created file: {path}"
@@ -56,9 +43,6 @@ class FileTools(BaseTools):
         if path.is_file():
             path.unlink()
             return f"Deleted file: {path}"
-        elif path.is_dir():
-            shutil.rmtree(path)
-            return f"Deleted directory: {path}"
         return f"Path not found: {path}"
 
     async def modify_file(self, path: str, replacements: dict[str, str]) -> str:
@@ -83,51 +67,15 @@ class FileTools(BaseTools):
         diff = difflib.unified_diff(original.splitlines(keepends=True), modified.splitlines(keepends=True), fromfile="original", tofile="modified")
         return "".join(diff)
 
-    async def list_directory(self, path: str) -> str:
-        """List contents of a directory using system ls/dir command.
+    async def file_tree(self, path: str) -> tuple[str, int, int]:
+        """Generate tree view of directory structure.
 
         Args:
-            path: Directory path to list
+            path: Root directory path
 
         Returns:
-            Raw command output as string
+            Tree view as string
         """
-        path = await self.validate_path(path)
-        if not path.is_dir():
-            raise ValueError(f"Path {path} is not a directory")
-
-        if sys.platform == "win32":
-            cmd = ["dir", path]
-        else:
-            cmd = ["ls", "-la", path]
-
-        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        stdout, _ = await proc.communicate()
-        return stdout.decode()
-
-    async def create_directory(self, path: str) -> None:
-        path = await self.validate_path(path)
-        path.mkdir(parents=True, exist_ok=True)
-
-    def _load_gitignore(self, path: str) -> list[str]:
-        gitignore_path = os.path.join(path, ".gitignore")
-        patterns = []
-        if os.path.exists(gitignore_path):
-            with open(gitignore_path) as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        patterns.append(line)
-        return patterns
-
-    def _get_tracked_files(self, repo_path: str) -> set[str] | None:
-        try:
-            repo = git.Repo(repo_path)
-            return set(repo.git.ls_files().splitlines())
-        except git.exc.InvalidGitRepositoryError:
-            return None
-
-    async def directory_tree(self, path: str) -> tuple[str, int, int]:
         path = await self.validate_path(path)
         base_path = path
 
@@ -177,6 +125,15 @@ class FileTools(BaseTools):
         return "\n".join(tree_lines), total_dirs, total_files
 
     def _should_ignore(self, path: str, patterns: list[str]) -> bool:
+        """Check if path matches gitignore patterns.
+
+        Args:
+            path: Path to check
+            patterns: List of gitignore patterns
+
+        Returns:
+            True if path should be ignored
+        """
         if not patterns:
             return False
 
@@ -199,24 +156,36 @@ class FileTools(BaseTools):
 
         return False
 
-    async def search_files(self, path: str, pattern: str, excludes: list[str] | None = None) -> list[str]:
-        path = await self.validate_path(path)
-        gitignore = self._load_gitignore(path)
-        if excludes:
-            gitignore.extend(excludes)
+    def _load_gitignore(self, path: str) -> list[str]:
+        """Load gitignore patterns from a directory.
 
-        results = []
-        for root, _, files in os.walk(path):
-            rel_root = os.path.relpath(root, path)
-            if rel_root != "." and self._should_ignore(rel_root, gitignore):
-                continue
+        Args:
+            path: Directory containing .gitignore
 
-            for file in files:
-                rel_path = os.path.join(rel_root, file)
-                if rel_path != "." and self._should_ignore(rel_path, gitignore):
-                    continue
+        Returns:
+            List of gitignore patterns
+        """
+        gitignore_path = os.path.join(path, ".gitignore")
+        patterns = []
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        patterns.append(line)
+        return patterns
 
-                if pattern in file or fnmatch.fnmatch(file, pattern):
-                    results.append(os.path.join(root, file))
+    def _get_tracked_files(self, repo_path: str) -> set[str] | None:
+        """Get set of tracked files in a git repository.
 
-        return results
+        Args:
+            repo_path: Path to git repository
+
+        Returns:
+            Set of tracked file paths or None if not a git repo
+        """
+        try:
+            repo = git.Repo(repo_path)
+            return set(repo.git.ls_files().splitlines())
+        except git.exc.InvalidGitRepositoryError:
+            return None
