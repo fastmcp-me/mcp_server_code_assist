@@ -21,13 +21,15 @@ class TestGitTools:
         with pytest.raises(ValueError):
             GitTools([str(tmp_path / "nonexistent")])
 
-    def test_status(self, git_tools, repo_path):
+    @pytest.mark.asyncio
+    async def test_status(self, git_tools, repo_path):
         (repo_path / "test.txt").write_text("test")
-        status = git_tools.status(str(repo_path))
+        status = await git_tools.status(str(repo_path))
         assert "Untracked files:" in status
         assert "test.txt" in status
 
-    def test_diff(self, git_tools, repo_path):
+    @pytest.mark.asyncio
+    async def test_diff(self, git_tools, repo_path):
         repo = Repo(repo_path)
         file_path = repo_path / "test.txt"
         file_path.write_text("test")
@@ -35,20 +37,22 @@ class TestGitTools:
         repo.index.commit("initial")
 
         file_path.write_text("modified")
-        diff = git_tools.diff(str(repo_path))
+        diff = await git_tools.diff(str(repo_path))
         assert "-test" in diff
         assert "+modified" in diff
 
-    def test_log(self, git_tools, repo_path):
+    @pytest.mark.asyncio
+    async def test_log(self, git_tools, repo_path):
         repo = Repo(repo_path)
         (repo_path / "test.txt").write_text("test")
         repo.index.add(["test.txt"])
         repo.index.commit("test commit")
 
-        log = git_tools.log(str(repo_path), 1)
+        log = await git_tools.log(str(repo_path), 1)
         assert "test commit" in log
 
-    def test_show(self, git_tools, repo_path):
+    @pytest.mark.asyncio
+    async def test_show(self, git_tools, repo_path):
         repo = Repo(repo_path)
 
         # Create a test file and commit it
@@ -62,17 +66,17 @@ class TestGitTools:
         modified_commit = repo.index.commit("modified commit")
 
         # Test showing specific commit with diff
-        show_output = git_tools.show(str(repo_path), modified_commit.hexsha)
+        show_output = await git_tools.show(str(repo_path), modified_commit.hexsha)
         assert "modified commit" in show_output
         assert "modified content" in show_output
         assert "-initial content" in show_output
         assert "+modified content" in show_output
 
         # Test showing commit with format
-        oneline_output = git_tools.show(str(repo_path), modified_commit.hexsha, format="oneline")
+        oneline_output = await git_tools.show(str(repo_path), modified_commit.hexsha, format_str="oneline")
         assert modified_commit.hexsha[:7] in oneline_output
         assert "modified commit" in oneline_output
 
         # Test showing HEAD (latest commit)
-        head_output = git_tools.show(str(repo_path))
+        head_output = await git_tools.show(str(repo_path))
         assert "modified commit" in head_output

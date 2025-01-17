@@ -132,8 +132,8 @@ class FileTools(BaseTools):
 
             return entries, dir_count, file_count
 
-        tree_lines, total_dirs, total_files = gen_tree(path)
-        return "\n".join(tree_lines), total_dirs, total_files
+        tree_lines, _, _ = gen_tree(path)
+        return "\n".join(tree_lines)
 
     def _should_ignore(self, path: str, patterns: list[str]) -> bool:
         """Check if path matches gitignore patterns.

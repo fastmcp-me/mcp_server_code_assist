@@ -49,14 +49,17 @@ class GitBase(BaseModel):
 
 
 class GitDiff(BaseModel):
+    repo_path: str
     target: str
 
 
 class GitShow(BaseModel):
+    repo_path: str
     revision: str
 
 
 class GitLog(BaseModel):
+    repo_path: str
     max_count: int = 10
 
 

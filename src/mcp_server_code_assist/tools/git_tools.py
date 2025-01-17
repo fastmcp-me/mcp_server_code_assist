@@ -20,17 +20,17 @@ class GitTools(BaseTools):
                 except (git.exc.InvalidGitRepositoryError, git.exc.NoSuchPathError) as e:
                     raise ValueError(f"Invalid git repository path: {path}") from e
 
-    def status(self, repo_path: str) -> str:
+    async def status(self, repo_path: str) -> str:
         """Get git repository status."""
         repo = git.Repo(repo_path)
         return repo.git.status()
 
-    def diff(self, repo_path: str, target: str | None = None) -> str:
+    async def diff(self, repo_path: str, target: str | None = None) -> str:
         """Show git diff."""
         repo = git.Repo(repo_path)
         return repo.git.diff(target) if target else repo.git.diff()
 
-    def log(self, repo_path: str, max_count: int = 10) -> str:
+    async def log(self, repo_path: str, max_count: int = 10) -> str:
         """Show git commit history."""
         repo = git.Repo(repo_path)
         commits = list(repo.iter_commits(max_count=max_count))
@@ -39,26 +39,26 @@ class GitTools(BaseTools):
             log.append(f"Commit: {commit.hexsha}\nAuthor: {commit.author}\nDate: {commit.authored_datetime}\nMessage: {commit.message}\n")
         return "\n".join(log)
 
-    def show(self, repo_path: str, revision: str | None = None, format: str | None = None) -> str:
+    async def show(self, repo_path: str, revision: str | None = None, format_str: str | None = None) -> str:
         """Show various types of git objects.
 
         Args:
             repo_path: Path to git repository
             revision: Object to show (commit hash, tag, tree, etc.). Defaults to HEAD
-            format: Optional format string for pretty-printing (e.g. 'oneline', 'short', 'medium', etc.)
+            format_str: Optional format string for pretty-printing (e.g. 'oneline', 'short', 'medium', etc.)
 
         Returns:
             String output of git show command
         """
         repo = git.Repo(repo_path)
         args = []
-        if format:
-            args.extend([f"--format={format}"])
+        if format_str:
+            args.extend([f"--format={format_str}"])
         if revision:
             args.append(revision)
         return repo.git.show(*args)
 
-    def is_valid_operation(self, path: Path) -> bool:
+    async def is_valid_operation(self, path: Path) -> bool:
         """Validate if operation can be performed on path.
 
         Args:

@@ -109,12 +109,10 @@ async def test_file_tree(file_tools):
     (TEST_DIR / "dir1/subdir").mkdir()
     await file_tools.write_file(str(TEST_DIR / "dir1/subdir/file3.txt"), "content3")
 
-    tree, dir_count, file_count = await file_tools.file_tree(str(TEST_DIR))
+    tree = await file_tools.file_tree(str(TEST_DIR))
 
     assert "dir1" in tree
     assert "file1.txt" in tree
     assert "file2.txt" in tree
     assert "subdir" in tree
     assert "file3.txt" in tree
-    assert dir_count == 2  # dir1 and subdir
-    assert file_count == 3  # file1.txt, file2.txt, file3.txt

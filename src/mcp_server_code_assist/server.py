@@ -7,7 +7,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import GetPromptResult, Prompt, TextContent, Tool
 
 from mcp_server_code_assist.prompts.prompt_manager import get_prompts, handle_prompt
-from mcp_server_code_assist.tools.models import FileCreate, FileDelete, FileModify, FileRead, FileRewrite, GitDiff, GitLog, GitShow, GitStatus, ListDirectory
+from mcp_server_code_assist.tools.models import CreateDirectory, FileCreate, FileDelete, FileModify, FileRead, FileRewrite, FileTree, GitDiff, GitLog, GitShow, GitStatus, ListDirectory
 from mcp_server_code_assist.tools.tools_manager import get_dir_tools, get_file_tools, get_git_tools
 
 
@@ -84,7 +84,7 @@ async def serve(working_dir: Path | None) -> None:
             Tool(
                 name=CodeAssistTools.CREATE_DIRECTORY,
                 description="Creates a new directory",
-                inputSchema=ListDirectory.model_json_schema(),
+                inputSchema=CreateDirectory.model_json_schema(),
             ),
             # File operations
             Tool(
@@ -159,45 +159,57 @@ async def serve(working_dir: Path | None) -> None:
         match name:
             # Directory operations
             case CodeAssistTools.LIST_DIRECTORY:
-                result = await dir_tools.list_directory(arguments["path"])
-                return [TextContent(result)]
-            case CodeAssistTools.FILE_TREE:
-                tree, dirs, files = await file_tools.file_tree(arguments["path"])
-                return [TextContent(f"{tree}\n\nTotal: {dirs} directories, {files} files")]
+                model = ListDirectory(path=arguments["path"])
+                result = await dir_tools.list_directory(model.path)
+                return [TextContent(type="text", text=result)]
             case CodeAssistTools.CREATE_DIRECTORY:
-                result = await dir_tools.create_directory(arguments["path"])
-                return [TextContent(result)]
+                model = CreateDirectory(path=arguments["path"])
+                result = await dir_tools.create_directory(model.path)
+                return [TextContent(type="text", text=result)]
 
             # File operations
             case CodeAssistTools.READ_FILE:
-                result = await file_tools.read_file(arguments["path"])
-                return [TextContent(result)]
+                model = FileRead(path=arguments["path"])
+                result = await file_tools.read_file(model.path)
+                return [TextContent(type="text", text=result)]
             case CodeAssistTools.CREATE_FILE:
-                result = await file_tools.create_file(arguments["path"], arguments["content"])
-                return [TextContent(result)]
+                model = FileCreate(path=arguments["path"], content=arguments["content"])
+                result = await file_tools.create_file(model.path, model.content)
+                return [TextContent(type="text", text=result)]
             case CodeAssistTools.MODIFY_FILE:
-                result = await file_tools.modify_file(arguments["path"], arguments["replacements"])
-                return [TextContent(result)]
+                model = FileModify(path=arguments["path"], replacements=arguments["replacements"])
+                result = await file_tools.modify_file(model.path, model.replacements)
+                return [TextContent(type="text", text=result)]
             case CodeAssistTools.REWRITE_FILE:
-                result = await file_tools.rewrite_file(arguments["path"], arguments["content"])
-                return [TextContent(result)]
+                model = FileRewrite(path=arguments["path"], content=arguments["content"])
+                result = await file_tools.rewrite_file(model.path, model.content)
+                return [TextContent(type="text", text=result)]
             case CodeAssistTools.DELETE_FILE:
-                result = await file_tools.delete_file(arguments["path"])
-                return [TextContent(result)]
+                model = FileDelete(path=arguments["path"])
+                result = await file_tools.delete_file(model.path)
+                return [TextContent(type="text", text=result)]
+            case CodeAssistTools.FILE_TREE:
+                model = FileTree(path=arguments["path"])
+                result = await file_tools.file_tree(model.path)
+                return [TextContent(type="text", text=result)]
 
             # Git operations
             case CodeAssistTools.GIT_STATUS:
-                result = git_tools.status(arguments["repo_path"])
-                return [TextContent(result)]
+                model = GitStatus(repo_path=arguments["repo_path"])
+                result = await git_tools.status(model.repo_path)
+                return [TextContent(type="text", text=result)]
             case CodeAssistTools.GIT_DIFF:
-                result = git_tools.diff(arguments["repo_path"], arguments.get("target"))
-                return [TextContent(result)]
+                model = GitDiff(repo_path=arguments["repo_path"], target=arguments.get("target", ""))
+                result = await git_tools.diff(model.repo_path, model.target)
+                return [TextContent(type="text", text=result)]
             case CodeAssistTools.GIT_LOG:
-                result = git_tools.log(arguments["repo_path"], arguments.get("max_count", 10))
-                return [TextContent(result)]
+                model = GitLog(repo_path=arguments["repo_path"], max_count=arguments.get("max_count", 10))
+                result = await git_tools.log(model.repo_path, model.max_count)
+                return [TextContent(type="text", text=result)]
             case CodeAssistTools.GIT_SHOW:
-                result = git_tools.show(arguments["repo_path"], arguments["commit"])
-                return [TextContent(result)]
+                model = GitShow(repo_path=arguments["repo_path"], revision=arguments["commit"])
+                result = await git_tools.show(model.repo_path, model.revision)
+                return [TextContent(type="text", text=result)]
             case _:
                 raise ValueError(f"Unknown tool: {name}")
 
