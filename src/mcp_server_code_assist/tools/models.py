@@ -13,6 +13,9 @@ class FileModify(BaseModel):
     path: Union[str, Path]
     replacements: dict[str, str]
 
+class FileRead(BaseModel):
+    path: Union[str, Path]
+
 class FileRewrite(BaseModel):
     path: Union[str, Path]
     content: str

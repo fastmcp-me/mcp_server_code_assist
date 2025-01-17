@@ -10,7 +10,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import ClientCapabilities, TextContent, Tool, ListRootsResult, RootsCapability
 import git
 from mcp_server_code_assist.tools.models import (
-    FileCreate, FileDelete, FileModify, FileRewrite,
+    FileCreate, FileDelete, FileModify, FileRewrite, FileRead,
     GitBase, GitAdd, GitCommit, GitDiff, GitCreateBranch,
     GitCheckout, GitShow, GitLog, ListDirectory
 )
@@ -23,6 +23,7 @@ class CodeAssistTools(str, Enum):
     FILE_DELETE = "file_delete" 
     FILE_MODIFY = "file_modify"
     FILE_REWRITE = "file_rewrite"
+    FILE_READ = "file_read"
     GIT_STATUS = "git_status"
     GIT_DIFF_UNSTAGED = "git_diff_unstaged"
     GIT_DIFF_STAGED = "git_diff_staged"
@@ -109,6 +110,11 @@ async def serve(working_dir: Path | None) -> None:
                 inputSchema=FileRewrite.schema(),
             ),
             Tool(
+                name=CodeAssistTools.FILE_READ,
+                description="Reads contents of a file",
+                inputSchema=FileRead.schema(),
+            ),
+            Tool(
                 name=CodeAssistTools.GIT_STATUS,
                 description="Shows the working tree status",
                 inputSchema=GitBase.schema(),
@@ -191,6 +197,10 @@ async def serve(working_dir: Path | None) -> None:
             case CodeAssistTools.FILE_REWRITE:
                 result = await FileTools.rewrite_file(arguments["path"], arguments["content"])
                 return [TextContent(type="text", text=result)]
+
+            case CodeAssistTools.FILE_READ:
+                content = await FileTools.read_file(arguments["path"])
+                return [TextContent(type="text", text=content)]
 
             case CodeAssistTools.GIT_STATUS:
                 repo = git.Repo(arguments["repo_path"])
