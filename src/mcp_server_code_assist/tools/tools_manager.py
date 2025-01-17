@@ -2,9 +2,11 @@
 
 from mcp_server_code_assist.tools.dir_tools import DirTools
 from mcp_server_code_assist.tools.file_tools import FileTools
+from mcp_server_code_assist.tools.git_tools import GitTools
 
 _file_tools: FileTools | None = None
 _dir_tools: DirTools | None = None
+_git_tools: GitTools | None = None
 
 
 def get_file_tools(allowed_paths: list[str]) -> FileTools:
@@ -35,3 +37,18 @@ def get_dir_tools(allowed_paths: list[str]) -> DirTools:
     if not _dir_tools or not all(path in _dir_tools.allowed_paths for path in allowed_paths):
         _dir_tools = DirTools(allowed_paths=allowed_paths)
     return _dir_tools
+
+
+def get_git_tools(allowed_paths: list[str]) -> GitTools:
+    """Get or create GitTools instance with given allowed paths.
+
+    Args:
+        allowed_paths: List of paths that tools can operate on
+
+    Returns:
+        GitTools instance with updated paths
+    """
+    global _git_tools
+    if not _git_tools or not all(path in _git_tools.allowed_paths for path in allowed_paths):
+        _git_tools = GitTools(allowed_paths=allowed_paths)
+    return _git_tools

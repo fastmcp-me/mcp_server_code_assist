@@ -6,9 +6,8 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from mcp_server_code_assist.tools.git_functions import git_diff, git_log, git_show, git_status
 from mcp_server_code_assist.tools.models import FileCreate, FileDelete, FileModify, FileRead, FileRewrite, GitDiff, GitLog, GitShow, GitStatus, ListDirectory
-from mcp_server_code_assist.tools.tools_manager import get_dir_tools, get_file_tools
+from mcp_server_code_assist.tools.tools_manager import get_dir_tools, get_file_tools, get_git_tools
 
 
 class CodeAssistTools(str, Enum):
@@ -29,16 +28,12 @@ class CodeAssistTools(str, Enum):
     GIT_DIFF = "git_diff"
     GIT_LOG = "git_log"
     GIT_SHOW = "git_show"
-    GIT_COMMIT = "git_commit"
-    GIT_ADD = "git_add"
-    GIT_RESET = "git_reset"
-    GIT_CREATE_BRANCH = "git_create_branch"
-    GIT_CHECKOUT = "git_checkout"
 
 
 async def process_instruction(instruction: dict[str, Any], repo_path: Path) -> dict[str, Any]:
     file_tools = get_file_tools([str(repo_path)])
     dir_tools = get_dir_tools([str(repo_path)])
+    git_tools = get_git_tools([str(repo_path)])
     try:
         match instruction["type"]:
             case "read_file":
@@ -59,13 +54,13 @@ async def process_instruction(instruction: dict[str, Any], repo_path: Path) -> d
             case "list_directory":
                 return {"content": await dir_tools.list_directory(instruction["path"])}
             case "git_status":
-                return {"status": git_status(repo_path)}
+                return {"status": git_tools.status(str(repo_path))}
             case "git_diff":
-                return {"diff": git_diff(repo_path)}
+                return {"diff": git_tools.diff(str(repo_path), instruction.get("target"))}
             case "git_log":
-                return {"log": git_log(repo_path)}
+                return {"log": git_tools.log(str(repo_path), instruction.get("max_count", 10))}
             case "git_show":
-                return {"show": git_show(repo_path, instruction["commit"])}
+                return {"show": git_tools.show(str(repo_path), instruction["commit"])}
             case _:
                 raise ValueError(f"Unknown instruction type: {instruction['type']}")
     except Exception as e:
@@ -150,6 +145,7 @@ async def serve(working_dir: Path | None) -> None:
         paths = [repo_path] if repo_path else allowed_paths
         file_tools = get_file_tools(paths)
         dir_tools = get_dir_tools(paths)
+        git_tools = get_git_tools(paths)
 
         match name:
             # Directory operations
@@ -182,16 +178,16 @@ async def serve(working_dir: Path | None) -> None:
 
             # Git operations
             case CodeAssistTools.GIT_STATUS:
-                result = git_status(arguments["repo_path"])
+                result = git_tools.status(arguments["repo_path"])
                 return [TextContent(result)]
             case CodeAssistTools.GIT_DIFF:
-                result = git_diff(arguments["repo_path"])
+                result = git_tools.diff(arguments["repo_path"], arguments.get("target"))
                 return [TextContent(result)]
             case CodeAssistTools.GIT_LOG:
-                result = git_log(arguments["repo_path"])
+                result = git_tools.log(arguments["repo_path"], arguments.get("max_count", 10))
                 return [TextContent(result)]
             case CodeAssistTools.GIT_SHOW:
-                result = git_show(arguments["repo_path"], arguments["commit"])
+                result = git_tools.show(arguments["repo_path"], arguments["commit"])
                 return [TextContent(result)]
             case _:
                 raise ValueError(f"Unknown tool: {name}")
