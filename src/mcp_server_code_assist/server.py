@@ -80,6 +80,10 @@ async def process_instruction(instruction: dict[str, Any], repo_path: Path) -> d
 async def serve(working_dir: Path | None) -> None:
     logger = logging.getLogger(__name__)
     server = Server("mcp-code-assist")
+    
+    # Initialize allowed paths with working directory
+    if working_dir:
+        FileTools.init_allowed_paths([str(working_dir)])
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
