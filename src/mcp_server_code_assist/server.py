@@ -4,8 +4,9 @@ from typing import Any
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import TextContent, Tool
+from mcp.types import GetPromptResult, Prompt, TextContent, Tool
 
+from mcp_server_code_assist.prompts.prompt_manager import get_prompts, handle_prompt
 from mcp_server_code_assist.tools.models import FileCreate, FileDelete, FileModify, FileRead, FileRewrite, GitDiff, GitLog, GitShow, GitStatus, ListDirectory
 from mcp_server_code_assist.tools.tools_manager import get_dir_tools, get_file_tools, get_git_tools
 
@@ -138,6 +139,14 @@ async def serve(working_dir: Path | None) -> None:
                 inputSchema=GitShow.model_json_schema(),
             ),
         ]
+
+    @server.list_prompts()
+    async def list_prompts() -> list[Prompt]:
+        return get_prompts()
+
+    @server.get_prompt()
+    async def get_prompt(name: str, arguments: dict[str, str] | None = None) -> GetPromptResult:
+        return await handle_prompt(name, arguments)
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
