@@ -4,6 +4,10 @@
 
 A Model Context Protocol server for code modification and generation. This server provides tools to create, modify, and delete code via Large Language Models.
 
+<a href="https://glama.ai/mcp/servers/pk7xbajohp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/pk7xbajohp/badge" alt="mcp-server-code-assist MCP server" />
+</a>
+
 ### Tools
 
 1. `create`
